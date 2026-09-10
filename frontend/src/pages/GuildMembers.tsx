@@ -31,8 +31,17 @@ function getWarnLevel(m: GuildMember, bottomIgns: Set<string>): WarnLevel | null
   return null
 }
 
-type SortKey = 'ign' | 'rank' | 'level' | 'last_login' | 'status'
+type SortKey = 'ign' | 'rank' | 'level' | 'last_login' | 'status' | 'messages_90d'
 type SortDir = 'asc' | 'desc'
+
+function getActivityColor(count: number): string {
+  if (count < 10) return '#8b1a1a'   // dark red
+  if (count < 100) return '#e1553a'  // red
+  if (count < 250) return '#d9a441'  // yellow
+  if (count < 500) return '#4caf6a'  // green
+  if (count < 1000) return '#4a9de0' // blue
+  return '#ffffff'                   // white
+}
 
 function formatLastLogin(ts: number | null): string {
   if (!ts) return 'N/A'
@@ -209,6 +218,7 @@ export default function GuildMembers() {
     else if (sortKey === 'level') cmp = (a.skyblock_level ?? -1) - (b.skyblock_level ?? -1)
     else if (sortKey === 'last_login') cmp = (a.last_login ?? 0) - (b.last_login ?? 0)
     else if (sortKey === 'status') cmp = (a.online ? 1 : 0) - (b.online ? 1 : 0)
+    else if (sortKey === 'messages_90d') cmp = (a.messages_90d ?? 0) - (b.messages_90d ?? 0)
     return sortDir === 'asc' ? cmp : -cmp
   })
 
@@ -288,6 +298,9 @@ export default function GuildMembers() {
                   <th style={{ cursor: 'pointer' }} onClick={() => handleSort('status')}>
                     Status <SortIcon active={sortKey === 'status'} dir={sortDir} />
                   </th>
+                  <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('messages_90d')}>
+                    Messages (90d) <SortIcon active={sortKey === 'messages_90d'} dir={sortDir} />
+                  </th>
                   <th>Stats Updated</th>
                 </tr>
               </thead>
@@ -337,6 +350,7 @@ export default function GuildMembers() {
                         : <span className="badge badge-off">Offline</span>
                       }
                     </td>
+                    <td style={{ color: getActivityColor(m.messages_90d ?? 0), fontWeight: 600, textAlign: 'center' }}>{m.messages_90d ?? 0}</td>
                     <td className="text-muted" style={{ fontSize: 12 }}>{formatFetchedAt(m.stats_fetched_at)}</td>
                   </tr>
                 ))}

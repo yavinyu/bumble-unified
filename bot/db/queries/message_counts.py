@@ -31,6 +31,20 @@ class MessageCountsQueries(BaseQueries):
                     (guild_key, uuid, canonical_ign, period_type, period_key)
                 )
 
+    def get_message_counts_90d(self, guild_key: str, month_keys: list) -> dict:
+        """Returns {uuid: total_count} summed across the given 'month' period_keys."""
+        if not month_keys:
+            return {}
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT uuid, SUM(count) FROM message_counts "
+                "WHERE guild_key = %s AND period_type = 'month' AND period_key = ANY(%s) "
+                "  AND uuid IS NOT NULL AND uuid != '' "
+                "GROUP BY uuid",
+                (guild_key, month_keys)
+            )
+            return {row[0]: row[1] for row in cur.fetchall()}
+
     def get_message_leaderboard(self, guild_key: str, period_type: str, period_key: str) -> list:
         """Returns [(ign, count, uuid, discord_name, discord_id, discord_avatar), ...] sorted by count desc."""
         with self._cursor() as cur:

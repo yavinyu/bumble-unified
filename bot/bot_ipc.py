@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import os
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -11,6 +12,16 @@ _IPC_SECRET = os.getenv("BOT_IPC_SECRET", "")
 def _verify(request: Request):
     if _IPC_SECRET and request.headers.get("X-IPC-Secret") != _IPC_SECRET:
         raise HTTPException(status_code=403)
+
+
+def _last_3_month_keys() -> list:
+    """Current UTC month plus the previous 2, as '%Y-%m' keys — a ~90-day approximation."""
+    now = datetime.datetime.utcnow().replace(day=1)
+    keys = []
+    for _ in range(3):
+        keys.append(now.strftime('%Y-%m'))
+        now = (now - datetime.timedelta(days=1)).replace(day=1)
+    return keys
 
 
 def create_ipc_app(client):
@@ -54,7 +65,8 @@ def create_ipc_app(client):
         if not state.connected or not state.bot:
             # Return DB cache with everyone offline
             rows = manager.get_guild_members(key)
-            members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None, "stats_fetched_at": r[8], "online": False} for r in rows]
+            msg_counts = manager.get_message_counts_90d(key, _last_3_month_keys())
+            members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None, "stats_fetched_at": r[8], "online": False, "messages_90d": msg_counts.get(r[4], 0)} for r in rows]
             return {"members": sorted(members, key=lambda m: m["ign"].lower())}
 
         # Refresh DB from /guild list. Serialized with the Discord
@@ -83,7 +95,8 @@ def create_ipc_app(client):
             online_igns = _parse_online_igns(list(state.guild_online))
 
         rows = manager.get_guild_members(key)
-        members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None, "stats_fetched_at": r[8], "online": r[0] in online_igns} for r in rows]
+        msg_counts = manager.get_message_counts_90d(key, _last_3_month_keys())
+        members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None, "stats_fetched_at": r[8], "online": r[0] in online_igns, "messages_90d": msg_counts.get(r[4], 0)} for r in rows]
         members.sort(key=lambda m: (not m["online"], m["ign"].lower()))
         return {"members": members}
 

@@ -44,6 +44,7 @@ export interface GuildMember {
   skyblock_level: number | null
   last_login: number | null
   stats_fetched_at: number | null
+  messages_90d: number
 }
 
 export interface ApiUsageStats {
