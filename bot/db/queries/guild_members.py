@@ -113,3 +113,39 @@ class GuildMembersQueries(BaseQueries):
                 "ORDER BY stats_fetched_at ASC NULLS FIRST LIMIT 1"
             )
             return cur.fetchone()
+
+    def record_level_snapshot(self, guild_key: str, ign: str, uuid: Optional[str], level) -> None:
+        """Inserts one level snapshot per member per UTC calendar day (skipped if today's already recorded)."""
+        with self._cursor() as cur:
+            today_start = int(_time.time()) - (int(_time.time()) % 86400)
+            cur.execute(
+                "SELECT 1 FROM guild_member_level_history "
+                "WHERE guild_key = %s AND LOWER(ign) = LOWER(%s) AND recorded_at >= %s LIMIT 1",
+                (guild_key, ign, today_start),
+            )
+            if cur.fetchone():
+                return
+            cur.execute(
+                "INSERT INTO guild_member_level_history (guild_key, ign, uuid, level, recorded_at) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (guild_key, ign, uuid, level, int(_time.time())),
+            )
+
+    def get_level_gain_90d(self, guild_key: str) -> dict:
+        """Returns {ign: (level_as_of_anchor, recorded_at)} — the anchor snapshot closest to 90
+        days ago: the most recent snapshot at or before the cutoff if one exists (so the gain keeps
+        showing indefinitely once 90 days of history has accumulated, instead of disappearing when
+        the oldest row ages out of a strict window), else the oldest snapshot recorded at all
+        (cold-start period, under 90 days of history — recorded_at lets callers show how many days
+        the gain actually covers while under 90)."""
+        cutoff = int(_time.time()) - 90 * 86400
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT ON (ign) ign::TEXT, level, recorded_at FROM guild_member_level_history "
+                "WHERE guild_key = %s "
+                "ORDER BY ign, "
+                "  (recorded_at > %s), "  # false (0) sorts first: prefer rows at/before cutoff
+                "  CASE WHEN recorded_at <= %s THEN -recorded_at ELSE recorded_at END ASC",
+                (guild_key, cutoff, cutoff),
+            )
+            return {row[0]: (row[1], row[2]) for row in cur.fetchall()}

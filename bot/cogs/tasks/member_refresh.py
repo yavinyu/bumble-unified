@@ -53,6 +53,8 @@ class MemberRefreshTask(commands.Cog):
             if level is None:
                 return
 
+            manager.record_level_snapshot(guild_key, ign, uuid, level)
+
             config = self.client.guild_configs.get(guild_key)
             if config is None:
                 return
