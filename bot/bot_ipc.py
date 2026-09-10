@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import os
+import time as _time
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from db import manager
@@ -22,6 +23,23 @@ def _last_3_month_keys() -> list:
         keys.append(now.strftime('%Y-%m'))
         now = (now - datetime.timedelta(days=1)).replace(day=1)
     return keys
+
+
+def _member_dict(r, online, msg_counts, old_levels) -> dict:
+    ign, level = r[0], r[2]
+    old = old_levels.get(ign)
+    level_gain_90d = None
+    level_gain_days = None
+    if level is not None and old is not None:
+        old_level, old_recorded_at = old
+        level_gain_90d = level - old_level
+        level_gain_days = (int(_time.time()) - old_recorded_at) // 86400
+    return {
+        "ign": ign, "rank": r[1], "skyblock_level": level, "last_login": r[3], "uuid": r[4] or None,
+        "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None,
+        "stats_fetched_at": r[8], "online": online, "messages_90d": msg_counts.get(r[4], 0),
+        "level_gain_90d": level_gain_90d, "level_gain_days": level_gain_days,
+    }
 
 
 def create_ipc_app(client):
@@ -66,7 +84,8 @@ def create_ipc_app(client):
             # Return DB cache with everyone offline
             rows = manager.get_guild_members(key)
             msg_counts = manager.get_message_counts_90d(key, _last_3_month_keys())
-            members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None, "stats_fetched_at": r[8], "online": False, "messages_90d": msg_counts.get(r[4], 0)} for r in rows]
+            old_levels = manager.get_level_gain_90d(key)
+            members = [_member_dict(r, False, msg_counts, old_levels) for r in rows]
             return {"members": sorted(members, key=lambda m: m["ign"].lower())}
 
         # Refresh DB from /guild list. Serialized with the Discord
@@ -96,7 +115,8 @@ def create_ipc_app(client):
 
         rows = manager.get_guild_members(key)
         msg_counts = manager.get_message_counts_90d(key, _last_3_month_keys())
-        members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None, "stats_fetched_at": r[8], "online": r[0] in online_igns, "messages_90d": msg_counts.get(r[4], 0)} for r in rows]
+        old_levels = manager.get_level_gain_90d(key)
+        members = [_member_dict(r, r[0] in online_igns, msg_counts, old_levels) for r in rows]
         members.sort(key=lambda m: (not m["online"], m["ign"].lower()))
         return {"members": members}
 

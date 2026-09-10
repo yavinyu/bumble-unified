@@ -45,6 +45,8 @@ export interface GuildMember {
   last_login: number | null
   stats_fetched_at: number | null
   messages_90d: number
+  level_gain_90d: number | null
+  level_gain_days: number | null
 }
 
 export interface ApiUsageStats {

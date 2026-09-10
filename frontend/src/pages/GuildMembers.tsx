@@ -342,7 +342,15 @@ export default function GuildMembers() {
                       />
                     </td>
                     <td className="text-muted">{m.rank}</td>
-                    <td className="text-muted">{m.skyblock_level != null ? m.skyblock_level.toFixed(1) : 'N/A'}</td>
+                    <td className="text-muted">
+                      {m.skyblock_level != null ? m.skyblock_level.toFixed(1) : 'N/A'}
+                      {m.level_gain_90d != null && (
+                        <span style={{ color: m.level_gain_90d >= 0 ? '#4caf6a' : '#e1553a', marginLeft: 6, fontSize: 12 }}>
+                          ({m.level_gain_90d >= 0 ? '+' : ''}{m.level_gain_90d.toFixed(1)}
+                          {m.level_gain_days != null && m.level_gain_days < 90 ? ` / ${m.level_gain_days}d` : ''})
+                        </span>
+                      )}
+                    </td>
                     <td className="text-muted">{formatLastLogin(m.last_login)}</td>
                     <td>
                       {m.online
